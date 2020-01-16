@@ -108,8 +108,10 @@ export class DockerImageAsset extends Construct implements assets.IAsset {
     if (props.repositoryName) { extraHash.repositoryName = props.repositoryName; }
 
     // add "salt" to the hash in order to invalidate the image in the upgrade to
-    // 1.21.0 which removes the AdoptedRepository resource (and will cause the
-    // deletion of the ECR repository the app used).
+    // 1.22.0 which removes the AdoptedRepository resource (and will cause the
+    // deletion of the ECR repository the app used). the specific value here is
+    // insignificat and represents the last version before this change was
+    // introduced (see https://github.com/aws/aws-cdk/pull/5733#pullrequestreview-343814343).
     extraHash.version = '1.21.0';
 
     const staging = new assets.Staging(this, 'Staging', {

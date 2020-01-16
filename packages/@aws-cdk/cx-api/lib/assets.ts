@@ -95,7 +95,7 @@ export interface ContainerImageAssetMetadataEntry extends BaseAssetMetadataEntry
    * image, e.g. from a Kubernetes Pod. Note, this is only the repository name,
    * without the registry and the tag parts.
    *
-   * @default - this parameter is REQUIRED after 1.21.0
+   * @default - this parameter is REQUIRED after 1.22.0
    */
   readonly repositoryName?: string;
 
@@ -104,7 +104,7 @@ export interface ContainerImageAssetMetadataEntry extends BaseAssetMetadataEntry
    * required if `imageParameterName` is ommited (otherwise, the app won't be
    * able to find the image).
    *
-   * @default - this parameter is REQUIRED after 1.21.0
+   * @default - this parameter is REQUIRED after 1.22.0
    */
   readonly imageTag?: string;
 

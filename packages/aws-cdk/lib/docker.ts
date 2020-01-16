@@ -33,7 +33,7 @@ export async function prepareContainerAsset(assemblyDir: string,
                                             reuse: boolean,
                                             ci?: boolean): Promise<CloudFormation.Parameter[]> {
 
-  // following 1.21.0, image asset location (repositoryName and imageTag) is fully determined by the
+  // following 1.22.0, image asset location (repositoryName and imageTag) is fully determined by the
   // app, and therefore there is no need to wire the image name through a cloudformation parameter.
   if (!asset.imageNameParameter) {
     await prepareContainerAssetNew(assemblyDir, asset, toolkitInfo);
@@ -147,7 +147,6 @@ export async function prepareContainerAssetNew(assemblyDir: string,
     return;
   }
 
-  // we use "latest" for image tag for backwards compatibility with pre-1.21.0 apps.
   const fullImageName = `${ecr.repositoryUri}:${asset.imageTag}`;
 
   // render "docker build" command

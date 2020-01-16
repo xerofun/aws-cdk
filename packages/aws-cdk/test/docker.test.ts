@@ -327,7 +327,7 @@ test('passes the correct file to docker build', async () => {
   shellStub.restore();
 });
 
-// since "imageNameParameter" is present, this means we are pre 1.21.0, which
+// since "imageNameParameter" is present, this means we are pre 1.22.0, which
 // implies which is before "imageTag" was supported. still, for the sake of
 // correctness of the protocol we added support for specifying image tag even if
 // it's probably not going to be used.
