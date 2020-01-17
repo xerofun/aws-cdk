@@ -6,7 +6,7 @@ export const CURRENT_VERSION = 'assets-1.0';
 /**
  * Definitions for the asset manifest
  */
-export interface ManifestSchema {
+export interface ManifestFile {
   /**
    * Version of the manifest
    */
@@ -15,12 +15,10 @@ export interface ManifestSchema {
   /**
    * The assets in this manifest
    */
-  readonly assets: Record<string, AssetSchema>;
+  readonly assets: Record<string, ManifestAsset>;
 }
 
-export type AssetSchema = FileAssetSchema | ContainerImageAssetSchema | GenericAssetSchema;
-
-export interface GenericAssetSchema {
+export interface ManifestAsset {
   /**
    * Type of the asset
    *
@@ -40,13 +38,13 @@ export interface GenericAssetSchema {
   readonly destinations: Record<string, any>;
 }
 
-export interface FileAssetSchema {
+export interface ManifestFileAsset {
   readonly type: 'file';
-  readonly source: FileAssetSourceSchema;
-  readonly destinations: Record<string, FileAssetDestinationSchema>;
+  readonly source: ManifestFileAssetSource;
+  readonly destinations: Record<string, ManifestFileAssetDestination>;
 }
 
-export interface FileAssetSourceSchema {
+export interface ManifestFileAssetSource {
   /**
    * The filesystem object to upload
    */
@@ -72,31 +70,31 @@ export enum FileAssetPackaging {
   ZIP_DIRECTORY = 'zip',
 }
 
-export interface AwsDestinationSchema {
+interface AwsDestinationSchema {
   readonly region: string;
   readonly assumeRoleArn?: string;
   readonly assumeRoleExternalId?: string;
 }
 
-export interface FileAssetDestinationSchema extends AwsDestinationSchema {
+export interface ManifestFileAssetDestination extends AwsDestinationSchema {
   readonly bucketName: string;
   readonly objectKey: string;
 }
 
-export interface ContainerImageAssetSchema {
+export interface ManifestContainerImageAsset {
   readonly type: 'container-image';
-  readonly source: ContainerImageAssetSourceSchema;
-  readonly destinations: Record<string, ContainerImageAssetDestinationSchema>;
+  readonly source: ManifestContainerImageAssetSource;
+  readonly destinations: Record<string, ManifestContainerImageAssetDestination>;
 }
 
-export interface ContainerImageAssetSourceSchema {
+export interface ManifestContainerImageAssetSource {
   readonly directory: string;
   readonly dockerBuildArgs?: Record<string, string>;
   readonly dockerBuildTarget?: string;
   readonly dockerFile?: string;
 }
 
-export interface ContainerImageAssetDestinationSchema extends AwsDestinationSchema {
+export interface ManifestContainerImageAssetDestination extends AwsDestinationSchema {
   readonly repositoryName: string;
   readonly imageTag: string;
 }
