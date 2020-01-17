@@ -1,1 +1,1 @@
-export * from './assets-operations';
+export * from './publishing';

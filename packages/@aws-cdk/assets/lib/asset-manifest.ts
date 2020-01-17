@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { CURRENT_VERSION, ManifestAsset, ManifestContainerImageAsset, ManifestFile, ManifestFileAsset } from './manifest-file';
 
 /**
@@ -26,30 +27,51 @@ export class AssetManifest {
         throw new Error(`Unrecognized file version, expected '${CURRENT_VERSION}', got '${obj.version}'`);
       }
 
-      return new AssetManifest(obj.assets);
+      return new AssetManifest(path.dirname(fileName), obj.assets);
     } catch (e) {
       throw new Error(`Canot read asset manifest '${fileName}': ${e.message}`);
     }
   }
 
-  constructor(public readonly assets: Record<string, ManifestAsset>) {
+  public static fromPath(filePath: string) {
+    let st;
+    try {
+      st = fs.statSync(filePath);
+    } catch (e) {
+      throw new Error(`Cannot read asset manifest at '${filePath}': ${e.message}`);
+    }
+    if (st.isDirectory()) {
+      return AssetManifest.fromFile(path.join(filePath, AssetManifest.DEFAULT_FILENAME));
+    }
+    return AssetManifest.fromFile(filePath);
+  }
+
+  constructor(public readonly directory: string, public readonly assets: Record<string, ManifestAsset>) {
   }
 
   /**
-   * Select a subset of assets and destinations from this manifest
+   * Select a subset of assets and destinations from this manifest.
+   *
+   * Only assets with at least 1 selected destination are retained.
+   *
+   * If selection is not given, everything is returned.
    */
-  public select(selection: AssetSelection = {}): AssetManifest {
-    const ret: Record<string, ManifestAsset> = {};
-    for (const [id, asset] of Object.entries(this.assets)) {
-      if (selection.ids && !selection.ids.includes(id)) { continue; }
+  public select(selection?: DestinationIdentifier[]): AssetManifest {
+    if (selection === undefined) { return this; }
 
-      ret[id] = {
-        ...asset,
-        destinations: filterDict(asset, (_, dest) => !selection.destinations || selection.destinations.includes(dest))
-      };
+    const ret: Record<string, ManifestAsset> = {};
+    for (const [assetId, asset] of Object.entries(this.assets)) {
+      const filteredDestinations =  filterDict(asset.destinations, (_, destId) => selection.some(sel => sel.matches(assetId, destId)));
+
+      if (Object.keys(filteredDestinations).length > 0) {
+        ret[assetId] = {
+          ...asset,
+          destinations: filteredDestinations,
+        };
+      }
     }
 
-    return new AssetManifest(ret);
+    return new AssetManifest(this.directory, ret);
   }
 
   /**
@@ -58,25 +80,36 @@ export class AssetManifest {
   public list() {
     return Object.entries(this.assets).map(([key, asset]) => `${key} ${asset.type}`);
   }
+
+  public get assetCount() {
+    return Object.keys(this.assets).length;
+  }
+
+  public get destinationCount() {
+    return sum(Object.values(this.assets).map(asset => Object.keys(asset.destinations).length));
+  }
 }
 
 /**
- * Assets to select
+ * Identify an asset (and/or a destination) in an asset manifest
  */
-export interface AssetSelection {
+export class DestinationIdentifier {
   /**
-   * Assets ids to select
-   *
-   * @default - All assets
+   * Parse a ':'-separated string into an asset/destination identifier
    */
-  readonly ids?: string[];
+  public static fromString(s: string) {
+    const parts = s.split(':');
+    if (parts.length === 1) { return new DestinationIdentifier(parts[0]); }
+    if (parts.length === 2) { return new DestinationIdentifier(parts[0], parts[1]); }
+    throw new Error(`Asset identifier must contain at most 2 ':'-separated parts, got '${s}'`);
+  }
 
-  /**
-   * Asset destinations to select
-   *
-   * @default - All destinations
-   */
-  readonly destinations?: string[];
+  constructor(public readonly assetId: string, public readonly destinationId?: string) {
+  }
+
+  public matches(assetId: string, destinationId: string) {
+    return this.assetId === assetId && (this.destinationId === undefined || this.destinationId === destinationId);
+  }
 }
 
 function filterDict<A>(xs: Record<string, A>, pred: (x: A, key: string) => boolean): Record<string, A> {
@@ -87,4 +120,8 @@ function filterDict<A>(xs: Record<string, A>, pred: (x: A, key: string) => boole
     }
   }
   return ret;
+}
+
+function sum(xs: number[]) {
+  return xs.reduce((a, b) => a + b, 0);
 }

@@ -1,11 +1,12 @@
+import { AssetManifest, DestinationIdentifier } from '@aws-cdk/assets';
 import * as winston from 'winston';
 import * as yargs from 'yargs';
-import { AssetsOperations } from '../lib';
+import { AssetPublishing, IPublishProgress, IPublishProgressListener } from '../lib';
 
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.cli(),
-  transports: [ new winston.transports.Console() ]
+  transports: [ new winston.transports.Console({ stderrLevels: ['info', 'debug', 'verbose', 'error'] })  ]
 });
 
 async function main() {
@@ -19,16 +20,30 @@ async function main() {
     default: 0
   })
   .command('ls PATH', 'List assets from the given manifest', command => command
-    .positional('PATH', { type: 'string', required: true, describe: 'Manifest file or cdk.out directory' })
-  , wrapHandler(async args => {
-    const ops = await AssetsOperations.fromPath(args.PATH!);
-    ops.list();
-  }))
-  .command('publish PATH', 'Publish assets in the given manifest', command => command
     .positional('PATH', { type: 'string', describe: 'Manifest file or cdk.out directory' })
+    .require('PATH')
   , wrapHandler(async args => {
+    const manifest = AssetManifest.fromPath(args.PATH);
     // tslint:disable-next-line:no-console
-    console.log(args);
+    console.log(manifest.list().join('\n'));
+  }))
+  .command('publish PATH [ASSET..]', 'Publish assets in the given manifest', command => command
+    .positional('PATH', { type: 'string', describe: 'Manifest file or cdk.out directory' })
+    .require('PATH')
+    .positional('ASSET', { type: 'string', array: true, describe: 'Assets to publish (format: "ASSET[:DEST]"), default all' })
+    .array('ASSET')
+  , wrapHandler(async args => {
+    const manifest = AssetManifest.fromPath(args.PATH);
+    const selection = args.ASSET && args.ASSET.length > 0 ? args.ASSET.map(a => DestinationIdentifier.fromString(a)) : undefined;
+
+    const selectedAssets = manifest.select(selection);
+    const pub = new AssetPublishing(selectedAssets, new ConsoleProgress());
+
+    await pub.publish();
+
+    if (pub.hasFailures) {
+      process.exit(1);
+    }
   }))
   .demandCommand()
   .help()
@@ -54,6 +69,27 @@ function wrapHandler<A extends { verbose?: number }, R>(handler: (x: A) => Promi
     });
     await handler(argv);
   };
+}
+
+class ConsoleProgress implements IPublishProgressListener {
+  public onPackageStart(event: IPublishProgress): void {
+    logger.verbose(`[${event.percentComplete}%] ${event.message}`);
+  }
+  public onPackageEnd(event: IPublishProgress): void {
+    logger.verbose(`[${event.percentComplete}%] ${event.message}`);
+  }
+  public onPublishStart(event: IPublishProgress): void {
+    logger.verbose(`[${event.percentComplete}%] ${event.message}`);
+  }
+  public onPublishEnd(event: IPublishProgress): void {
+    logger.info(`[${event.percentComplete}%] ${event.message}`);
+  }
+  public onEvent(event: IPublishProgress): void {
+    logger.debug(`[${event.percentComplete}%] ${event.message}`);
+  }
+  public onError(event: IPublishProgress): void {
+    logger.error(`${event.message}`);
+  }
 }
 
 main().catch(e => {
