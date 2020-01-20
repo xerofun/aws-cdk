@@ -47,7 +47,7 @@
   },
   "cdk-build": {
     "pre": [
-      "rm -rf test/fs/fixtures && cd test/fs && tar -xzvf fixtures.tar.gz"
+      "./generate-json-schema.sh && rm -rf test/fs/fixtures && cd test/fs && tar -xzvf fixtures.tar.gz"
     ]
   },
   "keywords": [
@@ -73,12 +73,14 @@
     "nodeunit": "^0.11.3",
     "pkglint": "1.20.0",
     "sinon": "^8.0.2",
-    "ts-mock-imports": "^1.2.6"
+    "ts-mock-imports": "^1.2.6",
+    "typescript-json-schema": "^0.41.0"
   },
   "dependencies": {
     "@aws-cdk/core": "1.20.0",
     "@aws-cdk/cx-api": "1.20.0",
-    "minimatch": "^3.0.4"
+    "minimatch": "^3.0.4",
+    "jsonschema": "^1.2.5"
   },
   "homepage": "https://github.com/aws/aws-cdk",
   "peerDependencies": {
@@ -89,7 +91,8 @@
     "node": ">= 10.3.0"
   },
   "bundledDependencies": [
-    "minimatch"
+    "minimatch",
+    "jsonschema"
   ],
   "stability": "experimental",
   "awslint": {

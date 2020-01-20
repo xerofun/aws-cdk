@@ -1,20 +1,16 @@
-import { AssetManifest } from "@aws-cdk/assets";
+import { AssetManifest, ManifestAsset } from "@aws-cdk/assets";
 import { makeAssetHandler } from "./handlers";
 
 export interface IPublishProgressListener {
-  onPackageStart(event: IPublishProgress): void;
-  onPackageEnd(event: IPublishProgress): void;
-  onPublishStart(event: IPublishProgress): void;
-  onPublishEnd(event: IPublishProgress): void;
+  onAssetStart(event: IPublishProgress): void;
+  onAssetEnd(event: IPublishProgress): void;
   onEvent(event: IPublishProgress): void;
   onError(event: IPublishProgress): void;
 }
 
 export interface IPublishProgress {
   readonly message: string;
-  readonly assetId: string;
-  readonly assetType: string;
-  readonly destinationId?: string;
+  readonly destination?: ManifestAsset;
   readonly percentComplete: number;
 
   /**
@@ -25,49 +21,35 @@ export interface IPublishProgress {
 
 export class AssetPublishing implements IPublishProgress {
   public message: string = 'Starting';
-  public assetId: string = '';
-  public assetType: string = '';
-  public destinationId?: string | undefined;
-  public readonly failedAssets = new Array<string>();
+  public destination?: ManifestAsset;
+  public readonly failedAssets = new Array<ManifestAsset>();
+  private readonly assets: ManifestAsset[];
 
   private readonly totalOperations: number;
   private completedOperations: number = 0;
   private aborted = false;
 
   constructor(private readonly manifest: AssetManifest, private readonly listener?: IPublishProgressListener) {
-    this.totalOperations = manifest.assetCount + manifest.destinationCount;
+    this.assets = manifest.assets;
+    this.totalOperations = this.assets.length;
   }
 
   public async publish(): Promise<void> {
-    for (const [assetId, asset] of Object.entries(this.manifest.assets)) {
+    for (const asset of this.assets) {
       if (this.aborted) { break; }
-      this.assetId = assetId;
-      this.assetType = asset.type;
-      this.destinationId = undefined;
+      this.destination = asset;
 
       try {
-        if (this.progress('onPackageStart', `Packaging ${asset.type} ${assetId}`)) { break; }
+        if (this.progress('onAssetStart', `Packaging ${asset.id}`)) { break; }
 
-        const handler = makeAssetHandler(this.manifest, assetId, asset, m => this.progress('onEvent', m));
+        const handler = makeAssetHandler(this.manifest, asset, m => this.progress('onEvent', m));
+        await handler.publish();
 
-        await handler.package();
         this.completedOperations++;
-
-        if (this.progress('onPackageEnd', `Packaged ${asset.type} ${assetId}`)) { break; }
-
-        for (const destId of Object.keys(asset.destinations)) {
-          if (this.aborted) { break; }
-          this.destinationId = destId;
-
-          if (this.progress('onPublishStart', `Publishing ${asset.type} ${assetId} to ${destId}`)) { break; }
-
-          await handler.publish(destId);
-          this.completedOperations++;
-
-          if (this.progress('onPublishEnd', `Published ${asset.type} ${assetId} to ${destId}`)) { break; }
-        }
+        if (this.progress('onAssetEnd', `Published ${asset.id}`)) { break; }
       } catch (e) {
-        this.failedAssets.push(assetId);
+        this.failedAssets.push(asset);
+        this.completedOperations++;
         if (this.progress('onError', e.message)) { break; }
       }
     }

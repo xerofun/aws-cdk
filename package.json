@@ -47,6 +47,8 @@
     "nohoist": [
       "**/jszip",
       "**/jszip/**",
+      "@aws-cdk/assets/jsonschema",
+      "@aws-cdk/assets/jsonschema/**",
       "@aws-cdk/assets/minimatch",
       "@aws-cdk/assets/minimatch/**",
       "@aws-cdk/cx-api/semver",

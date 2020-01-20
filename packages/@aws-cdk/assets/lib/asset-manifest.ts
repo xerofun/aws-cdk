@@ -1,6 +1,8 @@
 import * as fs from 'fs';
+import { Schema, Validator } from 'jsonschema';
 import * as path from 'path';
-import { CURRENT_VERSION, ManifestAsset, ManifestContainerImageAsset, ManifestFile, ManifestFileAsset } from './manifest-file';
+import { schema } from './private/manifest-file-schema';
+import { AssetType, DockerImageDestination, DockerImageSource, FileDestination, FileSource } from './types';
 
 /**
  * A manifest of assets
@@ -9,23 +11,11 @@ export class AssetManifest {
   /**
    * The default name of the asset manifest in a cdk.out directory
    */
-  public static DEFAULT_FILENAME = 'assets.json';
-
-  public static isFileAsset(asset: ManifestAsset): asset is ManifestFileAsset {
-    return asset.type === 'file';
-  }
-
-  public static isContainerImageAsset(asset: ManifestAsset): asset is ManifestContainerImageAsset {
-    return asset.type === 'container-image';
-  }
+  public static readonly DEFAULT_FILENAME = 'assets.json';
 
   public static fromFile(fileName: string) {
     try {
-      const obj = JSON.parse(fs.readFileSync(fileName, { encoding: 'utf-8' })) as ManifestFile;
-
-      if (!obj.version || obj.version !== CURRENT_VERSION) {
-        throw new Error(`Unrecognized file version, expected '${CURRENT_VERSION}', got '${obj.version}'`);
-      }
+      const obj = validateManifestFile(JSON.parse(fs.readFileSync(fileName, { encoding: 'utf-8' })));
 
       return new AssetManifest(path.dirname(fileName), obj.assets);
     } catch (e) {
@@ -46,7 +36,7 @@ export class AssetManifest {
     return AssetManifest.fromFile(filePath);
   }
 
-  constructor(public readonly directory: string, public readonly assets: Record<string, ManifestAsset>) {
+  private constructor(public readonly directory: string, private readonly _assets: Record<string, schema.GenericAsset>) {
   }
 
   /**
@@ -56,11 +46,11 @@ export class AssetManifest {
    *
    * If selection is not given, everything is returned.
    */
-  public select(selection?: DestinationIdentifier[]): AssetManifest {
+  public select(selection?: AssetIdentifier[]): AssetManifest {
     if (selection === undefined) { return this; }
 
-    const ret: Record<string, ManifestAsset> = {};
-    for (const [assetId, asset] of Object.entries(this.assets)) {
+    const ret: Record<string, schema.GenericAsset> = {};
+    for (const [assetId, asset] of Object.entries(this._assets)) {
       const filteredDestinations =  filterDict(asset.destinations, (_, destId) => selection.some(sel => sel.matches(assetId, destId)));
 
       if (Object.keys(filteredDestinations).length > 0) {
@@ -78,29 +68,107 @@ export class AssetManifest {
    * Describe the assets as a list of strings
    */
   public list() {
-    return Object.entries(this.assets).map(([key, asset]) => `${key} ${asset.type}`);
+    return Object.entries(this._assets).map(([key, asset]) => `${key} ${asset.type}`);
   }
 
-  public get assetCount() {
-    return Object.keys(this.assets).length;
+  /**
+   * Assets primarily organized by destinations
+   */
+  public get assets(): ManifestAsset[] {
+    const ret = new Array<ManifestAsset>();
+    for (const [assetId, asset] of Object.entries(this._assets)) {
+      for (const [destId, dest] of Object.entries(asset.destinations)) {
+        const id = new AssetIdentifier(assetId, destId);
+
+        if (schema.isFileAsset(asset)) {
+          ret.push(new ManifestFileAsset(id, asset.source, dest));
+        } else if (schema.isDockerImageAsset(asset)) {
+          ret.push(new ManifestDockerImageAsset(id, asset.source, dest));
+        } else {
+          ret.push(new ManifestAsset(id, asset.type, asset.source, dest));
+        }
+      }
+    }
+    return ret;
+  }
+}
+
+export class ManifestAsset {
+  /**
+   * The identifier of the asset
+   */
+  public readonly id: AssetIdentifier;
+
+  /**
+   * The type of asset
+   */
+  public readonly type: string;
+
+  constructor(id: AssetIdentifier, type: string, public readonly source: any, public readonly destination: any) {
+    this.id = id;
+    this.type = type;
   }
 
-  public get destinationCount() {
-    return sum(Object.values(this.assets).map(asset => Object.keys(asset.destinations).length));
+  public isFileAsset(): this is ManifestFileAsset {
+    return this instanceof ManifestFileAsset;
+  }
+
+  public isDockerImageAsset(): this is ManifestDockerImageAsset {
+    return this instanceof ManifestDockerImageAsset;
+  }
+}
+
+export class ManifestFileAsset extends ManifestAsset {
+  constructor(id: AssetIdentifier, source: FileSource, destination: FileDestination) {
+    super(id, AssetType.FILE, source, destination);
+  }
+
+  /**
+   * Source information for this file asset
+   */
+  public get fileSource(): FileSource {
+    return this.source;
+  }
+
+  /**
+   * Destination information for this file asset
+   */
+  public get fileDestination(): FileDestination {
+    return this.destination;
+  }
+}
+
+export class ManifestDockerImageAsset extends ManifestAsset {
+  constructor(id: AssetIdentifier, source: DockerImageSource, destination: DockerImageDestination) {
+    super(id, AssetType.DOCKER_IMAGE, source, destination);
+  }
+
+  /**
+   * Source information for this file asset
+   */
+  public get dockerSource(): DockerImageSource {
+    return this.source;
+  }
+
+  /**
+   * Destination information for this file asset
+   */
+  public get dockerDestination(): DockerImageDestination {
+    return this.destination;
   }
 }
 
 /**
  * Identify an asset (and/or a destination) in an asset manifest
  */
-export class DestinationIdentifier {
+export class AssetIdentifier {
   /**
    * Parse a ':'-separated string into an asset/destination identifier
    */
   public static fromString(s: string) {
     const parts = s.split(':');
-    if (parts.length === 1) { return new DestinationIdentifier(parts[0]); }
-    if (parts.length === 2) { return new DestinationIdentifier(parts[0], parts[1]); }
+    if (parts.length === 1) { return new AssetIdentifier(parts[0]); }
+    if (parts.length === 2) { return new AssetIdentifier(parts[0], parts[1]); }
     throw new Error(`Asset identifier must contain at most 2 ':'-separated parts, got '${s}'`);
   }
 
@@ -109,6 +177,10 @@ export class DestinationIdentifier {
 
   public matches(assetId: string, destinationId: string) {
     return this.assetId === assetId && (this.destinationId === undefined || this.destinationId === destinationId);
+  }
+
+  public toString() {
+    return this.destinationId ? `${this.assetId}:${this.destinationId}` : this.assetId;
   }
 }
 
@@ -122,6 +194,13 @@ function filterDict<A>(xs: Record<string, A>, pred: (x: A, key: string) => boole
   return ret;
 }
 
-function sum(xs: number[]) {
-  return xs.reduce((a, b) => a + b, 0);
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+
+export function validateManifestFile(obj: any): schema.ManifestFile {
+  const fileSchema: Schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schema', 'manifest.schema.json'), { encoding: 'utf-8' }));
+  const validator = new Validator();
+  validator.addSchema(fileSchema); // For definitions
+  const result = validator.validate(obj, fileSchema, { nestedErrors: true } as any);
+  if (result.valid) { return obj; }
+  throw new Error(`Invalid Asset Manifest:\n${result}`);
 }

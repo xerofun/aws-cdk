@@ -3,4 +3,4 @@ export * from './fs/follow-mode';
 export * from './fs/options';
 export * from './staging';
 export * from './asset-manifest';
-export * from './manifest-file';
+export * from './types';

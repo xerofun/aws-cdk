@@ -6,70 +6,57 @@ import { IAssetHandler, MessageSink } from "../private/asset-handler";
 import { s3Client } from "../private/sdk";
 
 export class FileAssetHandler implements IAssetHandler {
-  private publishFile?: string;
   private readonly fileCacheRoot: string;
 
   constructor(
     private readonly root: string,
-    private readonly assetId: string,
     private readonly asset: ManifestFileAsset,
     private readonly message: MessageSink) {
     this.fileCacheRoot = path.join(root, '.cache');
   }
 
-  public async package(): Promise<void> {
-    const fullPath = path.join(this.root, this.asset.source.path);
-
-    if (this.asset.source.packaging === FileAssetPackaging.ZIP_DIRECTORY) {
-      await fs.mkdirp(this.fileCacheRoot);
-      this.publishFile = path.join(this.fileCacheRoot, `${this.assetId}.zip`);
-
-      if (!await fs.pathExists(this.publishFile)) {
-        this.message(`Zip ${fullPath} -> ${this.publishFile}`);
-        await zipDirectory(fullPath, this.publishFile);
-      } else {
-        this.message(`From cache ${this.publishFile}`);
-      }
-    } else {
-      this.publishFile = fullPath;
-    }
-  }
-
-  public async publish(destinationId: string): Promise<void> {
-    if (!this.publishFile) { throw new Error('Call package() first'); }
-    const contentType = this.asset.source.packaging === FileAssetPackaging.ZIP_DIRECTORY ? 'application/zip' : undefined;
-
-    const destination = this.asset.destinations[destinationId];
-
-    if (destination.assumeRoleArn) {
-      const msg = [`Assume ${destination.assumeRoleArn}`];
-      if (destination.assumeRoleExternalId) {
-        msg.push(`(ExternalId ${destination.assumeRoleExternalId})`);
-      }
-      this.message(msg.join(' '));
-    }
-
-    const s3 = s3Client({
-      region: destination.region,
-      assumeRoleArn: destination.assumeRoleArn,
-      assumeRoleExternalId: destination.assumeRoleExternalId
-    });
-
+  public async publish(): Promise<void> {
+    const destination = this.asset.fileDestination;
     const s3Url = `s3://${destination.bucketName}/${destination.objectKey}`;
 
+    const s3 = s3Client(destination, this.message);
     this.message(`Check ${s3Url}`);
     if (await objectExists(s3, destination.bucketName, destination.objectKey)) {
       this.message(`Found ${s3Url}`);
       return;
     }
 
+    const publishFile = await this.package();
+    const contentType = this.asset.source.packaging === FileAssetPackaging.ZIP_DIRECTORY ? 'application/zip' : undefined;
+
     this.message(`Upload ${s3Url}`);
     await s3.putObject({
       Bucket: destination.bucketName,
       Key: destination.objectKey,
-      Body: fs.createReadStream(this.publishFile),
+      Body: fs.createReadStream(publishFile),
       ContentType: contentType
     }).promise();
+  }
+
+  public async package(): Promise<string> {
+    const source = this.asset.fileSource;
+    const fullPath = path.join(this.root, this.asset.source.path);
+
+    if (source.packaging === FileAssetPackaging.ZIP_DIRECTORY) {
+      await fs.mkdirp(this.fileCacheRoot);
+      const ret = path.join(this.fileCacheRoot, `${this.asset.id.assetId}.zip`);
+
+      if (await fs.pathExists(ret)) {
+        this.message(`From cache ${ret}`);
+        return ret;
+      }
+
+      this.message(`Zip ${fullPath} -> ${ret}`);
+      await zipDirectory(fullPath, ret);
+      return ret;
+    } else {
+      return fullPath;
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { AssetManifest, DestinationIdentifier } from '@aws-cdk/assets';
+import { AssetIdentifier, AssetManifest } from '@aws-cdk/assets';
 import * as winston from 'winston';
 import * as yargs from 'yargs';
 import { AssetPublishing, IPublishProgress, IPublishProgressListener } from '../lib';
@@ -34,7 +34,7 @@ async function main() {
     .array('ASSET')
   , wrapHandler(async args => {
     const manifest = AssetManifest.fromPath(args.PATH);
-    const selection = args.ASSET && args.ASSET.length > 0 ? args.ASSET.map(a => DestinationIdentifier.fromString(a)) : undefined;
+    const selection = args.ASSET && args.ASSET.length > 0 ? args.ASSET.map(a => AssetIdentifier.fromString(a)) : undefined;
 
     const selectedAssets = manifest.select(selection);
     const pub = new AssetPublishing(selectedAssets, new ConsoleProgress());
@@ -72,20 +72,14 @@ function wrapHandler<A extends { verbose?: number }, R>(handler: (x: A) => Promi
 }
 
 class ConsoleProgress implements IPublishProgressListener {
-  public onPackageStart(event: IPublishProgress): void {
-    logger.verbose(`[${event.percentComplete}%] ${event.message}`);
+  public onAssetStart(event: IPublishProgress): void {
+    logger.info(`[${event.percentComplete}%] ${event.message}`);
   }
-  public onPackageEnd(event: IPublishProgress): void {
-    logger.verbose(`[${event.percentComplete}%] ${event.message}`);
-  }
-  public onPublishStart(event: IPublishProgress): void {
-    logger.verbose(`[${event.percentComplete}%] ${event.message}`);
-  }
-  public onPublishEnd(event: IPublishProgress): void {
+  public onAssetEnd(event: IPublishProgress): void {
     logger.info(`[${event.percentComplete}%] ${event.message}`);
   }
   public onEvent(event: IPublishProgress): void {
-    logger.debug(`[${event.percentComplete}%] ${event.message}`);
+    logger.verbose(`[${event.percentComplete}%] ${event.message}`);
   }
   public onError(event: IPublishProgress): void {
     logger.error(`${event.message}`);
