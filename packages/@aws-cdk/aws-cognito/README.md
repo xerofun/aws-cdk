@@ -159,6 +159,46 @@ new UserPool(this, 'myuserpool', {
 
 > Internal: Implemented via UserPool-Policies
 
+#### Security & Account Recovery
+
+User pools can be configured to enable MFA. It can either be turned off, set to optional or made required. Setting MFA
+to optional means that individual users can choose to enable it. Phone numbers must be verified if MFA is enabled.
+Additionally, MFA can be sent either via SMS text message or via a time-based software token.
+[Go here](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-mfa.html) to learn more.
+
+This can be configured by setting the `mfa.enforcement` option under `security` properties to be one of the values in
+the `MfaEnforcement` enum. Available values are `REQUIRED`, `OPTIONAL`, `OFF`.
+The type of MFA can be configured by its peer property `type` which can be set to a list of values in the enum
+`MfaType`. The available values are `SMS` and `SOFTWARE_TOKEN`.
+
+User pools can also be configured to set up account recovery policies, when a user has lost their password or unable to
+retrieve their MFA token. [Go
+here](https://docs.aws.amazon.com/cognito/latest/developerguide/how-to-recover-a-user-account.html) to learn more about
+recovering user accounts.
+
+**INCOMPLETE**
+
+*Defaults*:
+* security.mfa.enforcement: OPTIONAL
+* security.mfa.type: SMS
+
+Code sample:
+
+```ts
+new UserPool(this, 'myuserpool', {
+  // ...
+  // ...
+  security: {
+    mfa: {
+      enforcement: MfaEnforcement.REQUIRED,
+      type: [ MfaType.SMS, MfaType.SOFTWARE_TOKEN ]
+    }
+  }
+});
+```
+
+> Internal Note: MFA enable via UserPool-MfaConfiguration; MFA type via UserPool-EnabledMfas
+
 ### Federated Identities or Identity Pools
 
 Control access of backend APIs and AWS resources for your app's users. Assign users to different roles and permissions,
