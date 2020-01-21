@@ -1,9 +1,9 @@
 import { FileAssetPackaging, ManifestFileAsset } from "@aws-cdk/assets";
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { IAws } from "../aws-operations";
 import { zipDirectory } from '../private/archive';
 import { IAssetHandler, MessageSink } from "../private/asset-handler";
-import { s3Client } from "../private/sdk";
 
 export class FileAssetHandler implements IAssetHandler {
   private readonly fileCacheRoot: string;
@@ -11,6 +11,7 @@ export class FileAssetHandler implements IAssetHandler {
   constructor(
     private readonly root: string,
     private readonly asset: ManifestFileAsset,
+    private readonly aws: IAws,
     private readonly message: MessageSink) {
     this.fileCacheRoot = path.join(root, '.cache');
   }
@@ -19,7 +20,7 @@ export class FileAssetHandler implements IAssetHandler {
     const destination = this.asset.fileDestination;
     const s3Url = `s3://${destination.bucketName}/${destination.objectKey}`;
 
-    const s3 = s3Client(destination, this.message);
+    const s3 = this.aws.s3Client(destination);
     this.message(`Check ${s3Url}`);
     if (await objectExists(s3, destination.bucketName, destination.objectKey)) {
       this.message(`Found ${s3Url}`);

@@ -1,8 +1,8 @@
 import { ManifestDockerImageAsset } from "@aws-cdk/assets";
 import * as path from 'path';
+import { IAws } from "../aws-operations";
 import { IAssetHandler, MessageSink } from "../private/asset-handler";
 import { Docker } from "../private/docker";
-import { ecrClient } from "../private/sdk";
 
 export class ContainerImageAssetHandler implements IAssetHandler {
   private readonly localTagName: string;
@@ -11,6 +11,7 @@ export class ContainerImageAssetHandler implements IAssetHandler {
   constructor(
     private readonly root: string,
     private readonly asset: ManifestDockerImageAsset,
+    private readonly aws: IAws,
     private readonly message: MessageSink) {
 
     this.localTagName = `cdkasset-${this.asset.id.assetId}`;
@@ -19,7 +20,7 @@ export class ContainerImageAssetHandler implements IAssetHandler {
   public async publish(): Promise<void> {
     const destination = this.asset.dockerDestination;
 
-    const ecr = ecrClient(destination, this.message);
+    const ecr = this.aws.ecrClient(destination);
 
     this.message(`Check ${destination.imageUri}`);
     if (await imageExists(ecr, destination.repositoryName, destination.imageTag)) {

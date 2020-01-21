@@ -1,7 +1,10 @@
 import { AssetIdentifier, AssetManifest } from '@aws-cdk/assets';
+import * as AWS from 'aws-sdk';
+import * as os from 'os';
 import * as winston from 'winston';
 import * as yargs from 'yargs';
 import { AssetPublishing, IPublishProgress, IPublishProgressListener } from '../lib';
+import { ClientOptions, IAws } from '../lib/aws-operations';
 
 const logger = winston.createLogger({
   level: 'info',
@@ -36,8 +39,11 @@ async function main() {
     const manifest = AssetManifest.fromPath(args.PATH);
     const selection = args.ASSET && args.ASSET.length > 0 ? args.ASSET.map(a => AssetIdentifier.fromString(a)) : undefined;
 
-    const selectedAssets = manifest.select(selection);
-    const pub = new AssetPublishing(selectedAssets, new ConsoleProgress());
+    const pub = new AssetPublishing({
+      manifest: manifest.select(selection),
+      aws: new DefaultAwsClient(),
+      progressListener: new ConsoleProgress()
+    });
 
     await pub.publish();
 
@@ -83,6 +89,43 @@ class ConsoleProgress implements IPublishProgressListener {
   }
   public onError(event: IPublishProgress): void {
     logger.error(`${event.message}`);
+  }
+}
+
+/**
+ * AWS client using the AWS SDK for JS with no special configuration
+ */
+class DefaultAwsClient implements IAws {
+  public s3Client(options: ClientOptions) {
+    return new AWS.S3(this.awsOptions(options));
+  }
+
+  public ecrClient(options: ClientOptions) {
+    return new AWS.ECR(this.awsOptions(options));
+  }
+
+  private awsOptions(options: ClientOptions) {
+    let credentials;
+
+    if (options.assumeRoleArn) {
+      credentials = new AWS.TemporaryCredentials({
+        RoleArn: options.assumeRoleArn,
+        ExternalId: options.assumeRoleExternalId,
+        RoleSessionName: `Assets-${os.userInfo().username}`,
+      });
+
+      const msg = [`Assume ${options.assumeRoleArn}`];
+      if (options.assumeRoleExternalId) {
+        msg.push(`(ExternalId ${options.assumeRoleExternalId})`);
+      }
+      if (logger) { logger.verbose(msg.join(' ')); }
+    }
+
+    return {
+      region: options.region,
+      customUserAgent: 'cdk-assets',
+      credentials,
+    };
   }
 }
 

@@ -1,4 +1,5 @@
 import { AssetManifest, ManifestAsset } from "@aws-cdk/assets";
+import { IAws } from "./aws-operations";
 import { makeAssetHandler } from "./handlers";
 
 export interface IPublishProgressListener {
@@ -19,6 +20,25 @@ export interface IPublishProgress {
   abort(): void;
 }
 
+export interface AssetPublishingOptions {
+  /**
+   * Manifest containing assets to publish
+   */
+  readonly manifest: AssetManifest;
+
+  /**
+   * Entry point for AWS client
+   */
+  readonly aws: IAws;
+
+  /**
+   * Listener for progress events
+   *
+   * @default No listener
+   */
+  readonly progressListener?: IPublishProgressListener;
+}
+
 export class AssetPublishing implements IPublishProgress {
   public message: string = 'Starting';
   public destination?: ManifestAsset;
@@ -29,8 +49,8 @@ export class AssetPublishing implements IPublishProgress {
   private completedOperations: number = 0;
   private aborted = false;
 
-  constructor(private readonly manifest: AssetManifest, private readonly listener?: IPublishProgressListener) {
-    this.assets = manifest.assets;
+  constructor(private readonly options: AssetPublishingOptions) {
+    this.assets = this.options.manifest.assets;
     this.totalOperations = this.assets.length;
   }
 
@@ -42,7 +62,7 @@ export class AssetPublishing implements IPublishProgress {
       try {
         if (this.progress('onAssetStart', `Packaging ${asset.id}`)) { break; }
 
-        const handler = makeAssetHandler(this.manifest, asset, m => this.progress('onEvent', m));
+        const handler = makeAssetHandler(this.options.manifest, asset, this.options.aws, m => this.progress('onEvent', m));
         await handler.publish();
 
         this.completedOperations++;
@@ -75,7 +95,7 @@ export class AssetPublishing implements IPublishProgress {
    */
   private progress<E extends keyof IPublishProgressListener >(event: E, message: string): boolean {
     this.message = message;
-    if (this.listener) { this.listener[event](this); }
+    if (this.options.progressListener) { this.options.progressListener[event](this); }
     return this.aborted;
   }
 }
