@@ -1,61 +1,70 @@
-export enum AssetType {
-  /**
-   * File asset
-   */
-  FILE = 'file',
-
-  /**
-   * Docker container image asset
-   */
-  DOCKER_IMAGE = 'docker-image',
-}
-
-export enum FileAssetPackaging {
-  /**
-   * Upload the given path as a file
-   */
-  FILE = 'file',
-
-  /**
-   * The given path is a directory, zip it and upload
-   */
-  ZIP_DIRECTORY = 'zip',
-}
-
-export interface FileSource {
-  /**
-   * The filesystem object to upload
-   */
-  readonly path: string;
-
-  /**
-   * Packaging method
-   *
-   * @default FILE
-   */
-  readonly packaging?: FileAssetPackaging;
-}
-
+/**
+ * Shared destination properties for all AWS destinations
+ */
 export interface AwsDestination {
+  /**
+   * The region where this asset will need to be published
+   */
   readonly region: string;
+
+  /**
+   * The role that needs to be assumed while publishing this asset
+   *
+   * @default - No role will be assumed
+   */
   readonly assumeRoleArn?: string;
+
+  /**
+   * The ExternalId that needs to be supplied while assuming this role
+   *
+   * @default - No ExternalId will be supplied
+   */
   readonly assumeRoleExternalId?: string;
 }
 
-export interface FileDestination extends AwsDestination {
-  readonly bucketName: string;
-  readonly objectKey: string;
-}
-
+/**
+ * Properties for how to produce a Docker image from a source
+ */
 export interface DockerImageSource {
+  /**
+   * The directory containing the Docker image build instructions
+   */
   readonly directory: string;
-  readonly dockerBuildArgs?: Record<string, string>;
-  readonly dockerBuildTarget?: string;
+
+  /**
+   * The name of the file with build instructions
+   *
+   * @default "Dockerfile"
+   */
   readonly dockerFile?: string;
+
+  /**
+   * Target build stage in a Dockerfile with multiple build stages
+   *
+   * @default - The last stage in the Dockerfile
+   */
+  readonly dockerBuildTarget?: string;
+
+  /**
+   * Additional build arguments
+   *
+   * @default - No additional build arguments
+   */
+  readonly dockerBuildArgs?: Record<string, string>;
 }
 
+/**
+ * Where to publish docker images
+ */
 export interface DockerImageDestination extends AwsDestination {
+  /**
+   * Name of the ECR repository to publish to
+   */
   readonly repositoryName: string;
+
+  /**
+   * Tag of the image to publish
+   */
   readonly imageTag: string;
 
   /**
