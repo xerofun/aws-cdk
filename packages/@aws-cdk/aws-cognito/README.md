@@ -23,6 +23,50 @@ User Pools allows creating and managing your own directory of users that can sig
 integration with social identity providers such as Facebook, Google, Amazon, Microsoft Active Directory, etc. through
 SAML.
 
+#### Sign Up
+
+Users need to either signed up by the app's administrators or can sign themselves up. You can read more about both these
+kinds of sign up and how they work
+[here](https://docs.aws.amazon.com/cognito/latest/developerguide/signing-up-users-in-your-app.html).
+
+Further, a welcome email and/or SMS can be configured to be sent automatically once a user has signed up. This welcome
+email and/or SMS will carry the temporary password for the user. he user will use this password to log in and reset the
+password to one of their choice. The temporary password is valid only for a limited number of days.
+
+All of these options can be configured under the `signUp` property. The pool can be configured to let users sign
+themselves up by setting the `selfSignUp` property. A welcome email template can be configured by specifying the
+`welcomeEmail` property and a similar `welcomeSms` property for the welcome SMS. The validity of the temporary password
+can be specified via the `tempPasswordValidity` property.
+
+*Defaults*:
+* selfSignUp: true
+* tempPasswordValidity: 7 days
+* welcomeEmail.subject: 'Thanks for signing up'
+* welcomeEmail.body - 'Hello {username}, Your temporary password is {####}'
+* welcomeSms.message - 'Your temporary password is {####}'
+
+Code sample:
+
+```ts
+new UserPool(this, 'myuserpool', {
+  // ...
+  // ...
+  signUp: {
+    selfSignUp: true,
+    tempPasswordValidity: Duration.days(3),
+    welcomeEmail: {
+      subject: 'Welcome to our awesome app!'
+      body: 'Hello {username}, Thanks for signing up to our awesome app! Your temporary password is {####}'
+    },
+    welcomeSms: {
+      message: 'Your temporary password for our awesome app is {####}'
+    }
+  }
+});
+```
+
+> Internal Note: Implemented via UserPool-AdminCreateUserConfig and temp password UserPool-Policies
+
 #### Sign-In Type
 
 These are the various ways a user of your app can sign in. There are 4 options available with the enum `SignInType`:
@@ -33,7 +77,7 @@ These are the various ways a user of your app can sign in. There are 4 options a
 * EMAIL: Allow signing in using the email address that is associated with the account.
 * PHONE\_NUMBER: Allow signing in using the phone number that is associated with the account.
 
-*Default*: USERNAME.
+*Defaults*: USERNAME.
 
 Code sample:
 
@@ -45,7 +89,7 @@ new UserPool(this, 'myuserpool', {
 });
 ```
 
-> Internal Note: Implemented via UserPool UsernameAttributes & AliasAttributes
+> Internal Note: Implemented via UserPool-UsernameAttributes and -AliasAttributes
 
 #### Attributes
 
@@ -68,7 +112,9 @@ Additionally, two properties `mutable` and `adminOnly` properties can be set for
 specifies that the property can be modified by the user while the latter specifies that it can only be modified by the
 app's administrator and not by the user (using their access token).
 
-*Default*: None of the standard are marked required. For all custom attributes, mutable is true and adminOnly is false.
+*Defaults*:
+* No standard attributes are marked required.
+* For all custom attributes, mutable is true and adminOnly is false.
 
 Code sample:
 
@@ -86,16 +132,17 @@ new UserPool(this, 'myuserpool', {
 });
 ```
 
-> Internal note: Implemented via UserPool SchemaAttribute
+> Internal note: Implemented via UserPool-SchemaAttribute
 > Internal note: Follow up - is mutable = false and adminOnly = true allowed?
 
 #### Password Policy
 
 Specify the constrains when users choose their policy. It's possible to specify the minimum length, whether lowercase,
-numbers and/or symbols are required, as well as, how long a temporary password is valid.
+numbers and/or symbols are required.
 
-*Default*: Passwords must be a minimum length of 8, require lowercase, numbers and symbols with a temporary password
-validity of 7 days.
+*Defaults*:
+* minimum length of 8
+* require lowercase, numbers and symbols.
 
 Code sample:
 
@@ -106,10 +153,11 @@ new UserPool(this, 'myuserpool', {
   passwordPolicy: {
     required: [ PasswordPolicy.LOWERCASE, PasswordPolicy.NUMBERS, PasswordPolicy.SYMBOLS ],
     minLength: 12,
-    tempPasswordValidity: Duration.days(3)
   }
 });
 ```
+
+> Internal: Implemented via UserPool-Policies
 
 ### Federated Identities or Identity Pools
 
